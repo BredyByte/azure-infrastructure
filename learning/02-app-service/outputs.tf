@@ -12,12 +12,12 @@ output "app_service_plan_name" {
 
 output "web_app_name" {
 
-  value = azurerm_linux_web_app.this.name
+  value = module.app_service.name
 
 }
 
 output "web_app_url" {
 
-  value = "https://${azurerm_linux_web_app.this.default_hostname}"
+  value = module.app_service.name
 
 }

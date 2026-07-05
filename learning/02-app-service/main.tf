@@ -12,23 +12,21 @@ module "app_service_plan" {
 
   source = "../../modules/app-service-plan"
 
-  name = local.names.app_service_plan
-
-  location = module.resource_group.location
-
+  name                = local.names.app_service_plan
+  location            = module.resource_group.location
   resource_group_name = module.resource_group.name
 
-  sku_name = var.app_service_plan_sku
-
-  worker_count = var.worker_count
-
+  sku_name               = var.app_service_plan_sku
+  worker_count           = var.worker_count
   zone_balancing_enabled = var.zone_balancing_enabled
 
   tags = var.tags
 
 }
 
-resource "azurerm_linux_web_app" "this" {
+module "app_service" {
+
+  source = "../../modules/app-service"
 
   name = local.names.app_service
 
@@ -38,17 +36,7 @@ resource "azurerm_linux_web_app" "this" {
 
   service_plan_id = module.app_service_plan.id
 
-  https_only = true
-
-  site_config {
-
-    application_stack {
-
-      python_version = var.python_version
-
-    }
-
-  }
+  python_version = var.python_version
 
   tags = var.tags
 
