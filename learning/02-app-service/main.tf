@@ -8,8 +8,9 @@ module "resource_group" {
 
 }
 
+module "app_service_plan" {
 
-resource "azurerm_service_plan" "this" {
+  source = "../../modules/app-service-plan"
 
   name = local.names.app_service_plan
 
@@ -17,14 +18,15 @@ resource "azurerm_service_plan" "this" {
 
   resource_group_name = module.resource_group.name
 
-  os_type = "Linux"
-
   sku_name = var.app_service_plan_sku
+
+  worker_count = var.worker_count
+
+  zone_balancing_enabled = var.zone_balancing_enabled
 
   tags = var.tags
 
 }
-
 
 resource "azurerm_linux_web_app" "this" {
 
@@ -34,7 +36,9 @@ resource "azurerm_linux_web_app" "this" {
 
   resource_group_name = module.resource_group.name
 
-  service_plan_id = azurerm_service_plan.this.id
+  service_plan_id = module.app_service_plan.id
+
+  https_only = true
 
   site_config {
 
@@ -45,8 +49,6 @@ resource "azurerm_linux_web_app" "this" {
     }
 
   }
-
-  https_only = true
 
   tags = var.tags
 

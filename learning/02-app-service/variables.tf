@@ -1,23 +1,39 @@
 variable "location" {
-  type = string
+  description = "Azure region."
+  type        = string
 }
 
 variable "environment" {
-  type = string
+  description = "Deployment environment."
+  type        = string
 }
 
 variable "project" {
-  type = string
+  description = "Project name."
+  type        = string
 }
 
 variable "app_service_plan_sku" {
-  type = string
+  description = "App Service Plan pricing tier."
+  type        = string
+}
+
+variable "worker_count" {
+  description = "Number of App Service Plan workers."
+  type        = number
+}
+
+variable "zone_balancing_enabled" {
+  description = "Enable zone balancing."
+  type        = bool
 }
 
 variable "python_version" {
-  type = string
+  description = "Python runtime version."
+  type        = string
 }
 
 variable "tags" {
-  type = map(string)
+  description = "Common resource tags."
+  type        = map(string)
 }
