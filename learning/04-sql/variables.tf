@@ -1,0 +1,109 @@
+variable "location" {
+  description = "Azure region."
+  type        = string
+}
+
+variable "environment" {
+  description = "Deployment environment."
+  type        = string
+}
+
+variable "project" {
+  description = "Project name."
+  type        = string
+}
+
+############################################################
+# Storage Account
+############################################################
+
+variable "account_tier" {
+  description = "Storage Account tier."
+  type        = string
+}
+
+variable "account_replication_type" {
+  description = "Storage Account replication."
+  type        = string
+}
+
+variable "containers" {
+  description = "Blob containers."
+  type        = list(string)
+}
+
+############################################################
+# App Service Plan
+############################################################
+
+variable "app_service_plan_sku" {
+  description = "App Service Plan SKU."
+  type        = string
+}
+
+variable "worker_count" {
+  description = "Number of workers."
+  type        = number
+}
+
+variable "zone_balancing_enabled" {
+  description = "Enable Zone Balancing."
+  type        = bool
+}
+
+############################################################
+# App Service
+############################################################
+
+variable "python_version" {
+  description = "Python version."
+  type        = string
+}
+
+############################################################
+# SQL Server
+############################################################
+
+variable "sql_location" {
+  description = "Azure SQL region."
+  type        = string
+}
+
+variable "sql_admin_login" {
+  description = "SQL administrator login."
+  type        = string
+}
+
+variable "sql_admin_password" {
+  description = "SQL administrator password."
+  type        = string
+  sensitive   = true
+}
+
+############################################################
+# SQL Database
+############################################################
+
+variable "sql_database_sku" {
+  description = "SQL Database SKU."
+  type        = string
+}
+
+variable "sql_zone_redundant" {
+  description = "Enable SQL zone redundancy."
+  type        = bool
+}
+
+variable "storage_account_type" {
+  description = "Backup storage redundancy."
+  type        = string
+}
+
+############################################################
+# Common
+############################################################
+
+variable "tags" {
+  description = "Common tags."
+  type        = map(string)
+}
