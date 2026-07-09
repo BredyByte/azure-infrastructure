@@ -18,6 +18,17 @@ variable "tenant_id" {
   type        = string
 }
 
+variable "secrets" {
+  description = "Secrets to create inside the Key Vault."
+  type = map(string)
+  default = {}
+}
+
+variable "current_user_object_id" {
+  description = "Object ID of the current Azure user."
+  type        = string
+}
+
 variable "tags" {
   description = "Common tags."
   type        = map(string)

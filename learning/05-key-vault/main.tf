@@ -136,4 +136,15 @@ module "key_vault" {
 
   tags = var.tags
 
+  current_user_object_id = data.azurerm_client_config.current.object_id
+
+  secrets = {
+
+    welcome-message = "Welcome David from Azure Key Vault!"
+
+    environment = "Development"
+
+    project = "Hello World"
+
+  }
 }

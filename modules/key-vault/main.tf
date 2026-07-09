@@ -17,3 +17,31 @@ resource "azurerm_key_vault" "this" {
   tags = var.tags
 
 }
+
+resource "azurerm_role_assignment" "current_user_kv_admin" {
+
+  scope = azurerm_key_vault.this.id
+
+  role_definition_name = "Key Vault Administrator"
+
+  principal_id = var.current_user_object_id
+
+}
+
+resource "azurerm_key_vault_secret" "this" {
+
+  ## Terraform creates resources in parallel whenever it can.
+  ## This ensures the role assignment is created before Terraform starts creating secrets.
+  depends_on =[
+    azurerm_role_assignment.current_user_kv_admin
+  ]
+
+  for_each = var.secrets
+
+  name  = each.key
+
+  value = each.value
+
+  key_vault_id = azurerm_key_vault.this.id
+}
+
