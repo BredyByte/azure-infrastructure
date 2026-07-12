@@ -35,14 +35,19 @@ locals {
   web_app          = "app-dev-helloworld"
 
   storage_account = "stdevhelloworld"
+  storage_containers = toset([
+    "images",
+    "data",
+    "text",
+  ])
 
   sql_server_location = "France Central"
   sql_server          = "sql-dev-helloworld"
   sql_database        = "sqldb-dev-helloworld"
-  sql_admin_login    = "sqladmin"
-  sql_admin_password = "wtFbyJMcDdgY3PbaI7fq"
+  sql_admin_login     = "sqladmin"
+  sql_admin_password  = "wtFbyJMcDdgY3PbaI7fq"
 
-  key_vault = "kv-dev-helloworld"
+  key_vault              = "kv-dev-helloworld"
   current_user_object_id = data.azurerm_client_config.current.object_id
 
   secrets = {
@@ -50,8 +55,8 @@ locals {
     sql-admin-password = local.sql_admin_password
 
     welcome-message = "Welcome David from Azure Key Vault!"
-    environment = "Development"
-    project = "Hello World"
+    environment     = "Development"
+    project         = "Hello World"
   }
 
   tags = {
@@ -106,6 +111,13 @@ resource "azurerm_linux_web_app" "app" {
 
   https_only = true
 
+  app_settings = {
+    KEY_VAULT_URL              = azurerm_key_vault.kv.vault_uri
+    AZURE_STORAGE_ACCOUNT_NAME = azurerm_storage_account.storage.name
+    SQL_SERVER                 = azurerm_mssql_server.sql.fully_qualified_domain_name
+    SQL_DATABASE               = azurerm_mssql_database.database.name
+  }
+
   site_config {
     always_on = true
 
@@ -130,6 +142,14 @@ resource "azurerm_storage_account" "storage" {
   account_replication_type = "LRS"
 
   tags = local.tags
+}
+
+resource "azurerm_storage_container" "containers" {
+  for_each = local.storage_containers
+
+  name                  = each.value
+  storage_account_id    = azurerm_storage_account.storage.id
+  container_access_type = "private"
 }
 
 ############################################################
