@@ -6,6 +6,11 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.80"
     }
+
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -16,6 +21,8 @@ provider "azurerm" {
     }
   }
 }
+
+provider "azuread" {}
 
 ############################################################
 # Current Azure Account
@@ -49,6 +56,18 @@ locals {
   key_vault              = "kv-dev-helloworld"
   current_user_object_id = data.azurerm_client_config.current.object_id
 
+  virtual_network_name          = "vnet-dev-helloworld"
+  virtual_network_address_space = ["10.20.0.0/16"]
+
+  app_gateway_subnet_name     = "snet-app-gateway"
+  app_gateway_subnet_prefixes = ["10.20.0.0/24"]
+
+  app_service_subnet_name     = "snet-app-service-integration"
+  app_service_subnet_prefixes = ["10.20.1.0/26"]
+
+  private_endpoints_subnet_name     = "snet-private-endpoints"
+  private_endpoints_subnet_prefixes = ["10.20.2.0/27"]
+
   secrets = {
     welcome-message = "Welcome David from Azure Key Vault!"
   }
@@ -70,6 +89,50 @@ resource "azurerm_resource_group" "rg" {
   location = local.location
 
   tags = local.tags
+}
+
+############################################################
+# Virtual Network
+############################################################
+
+resource "azurerm_virtual_network" "vnet" {
+  name                = local.virtual_network_name
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  address_space       = local.virtual_network_address_space
+
+  tags = local.tags
+}
+
+resource "azurerm_subnet" "app_gateway" {
+  name                 = local.app_gateway_subnet_name
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = local.app_gateway_subnet_prefixes
+}
+
+resource "azurerm_subnet" "app_service_integration" {
+  name                 = local.app_service_subnet_name
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = local.app_service_subnet_prefixes
+
+  delegation {
+    name = "app-service-delegation"
+
+    service_delegation {
+      name = "Microsoft.Web/serverFarms"
+    }
+  }
+}
+
+resource "azurerm_subnet" "private_endpoints" {
+  name                 = local.private_endpoints_subnet_name
+  resource_group_name  = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.vnet.name
+  address_prefixes     = local.private_endpoints_subnet_prefixes
+
+  private_endpoint_network_policies = "Disabled"
 }
 
 ############################################################
