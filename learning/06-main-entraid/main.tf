@@ -51,12 +51,7 @@ locals {
   current_user_object_id = data.azurerm_client_config.current.object_id
 
   secrets = {
-    sql-admin-login    = local.sql_admin_login
-    sql-admin-password = local.sql_admin_password
-
     welcome-message = "Welcome David from Azure Key Vault!"
-    environment     = "Development"
-    project         = "Hello World"
   }
 
   tags = {
@@ -111,6 +106,11 @@ resource "azurerm_linux_web_app" "app" {
 
   https_only = true
 
+  # Creates a Microsoft Entra service principal for this App Service.
+  identity {
+    type = "SystemAssigned"
+  }
+
   app_settings = {
     KEY_VAULT_URL              = azurerm_key_vault.kv.vault_uri
     AZURE_STORAGE_ACCOUNT_NAME = azurerm_storage_account.storage.name
@@ -150,6 +150,20 @@ resource "azurerm_storage_container" "containers" {
   name                  = each.value
   storage_account_id    = azurerm_storage_account.storage.id
   container_access_type = "private"
+}
+
+# (RBAC) Allows the web app's managed identity to read and list blobs.
+resource "azurerm_role_assignment" "app_storage_blob_data_reader" {
+  scope                = azurerm_storage_account.storage.id
+  role_definition_name = "Storage Blob Data Reader"
+  principal_id         = azurerm_linux_web_app.app.identity[0].principal_id
+}
+
+# (RBAC) Allows the user(me) to manage blob's content.
+resource "azurerm_role_assignment" "current_user_storage_blob_owner" {
+  scope = azurerm_storage_account.storage.id
+  role_definition_name = "Storage Blob Data Owner"
+  principal_id = data.azurerm_client_config.current.object_id
 }
 
 ############################################################
@@ -209,23 +223,21 @@ resource "azurerm_key_vault" "kv" {
   tags = local.tags
 }
 
-############################################################
-# Key Vault RBAC
-############################################################
-
+# (RBAC)
 resource "azurerm_role_assignment" "current_user_kv_admin" {
-
   scope = azurerm_key_vault.kv.id
-
   role_definition_name = "Key Vault Administrator"
-
   principal_id = local.current_user_object_id
 }
 
-############################################################
-# Key Vault Secrets
-############################################################
+# (RBAC) Allows the web app's managed identity to read values from Key Vault.
+resource "azurerm_role_assignment" "app_key_vault_secrets_user" {
+  scope                = azurerm_key_vault.kv.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azurerm_linux_web_app.app.identity[0].principal_id
+}
 
+# Key Vault secrets creation
 resource "azurerm_key_vault_secret" "this" {
 
   depends_on = [
