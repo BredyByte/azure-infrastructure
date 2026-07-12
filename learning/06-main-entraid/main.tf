@@ -41,11 +41,10 @@ locals {
     "text",
   ])
 
-  sql_server_location = "France Central"
-  sql_server          = "sql-dev-helloworld"
-  sql_database        = "sqldb-dev-helloworld"
-  sql_admin_login     = "sqladmin"
-  sql_admin_password  = "wtFbyJMcDdgY3PbaI7fq"
+  sql_server_location                 = "France Central"
+  sql_server                          = "sql-dev-helloworld"
+  sql_database                        = "sqldb-dev-helloworld"
+  sql_entra_admin_user_principal_name = "correodemimobil_gmail.com#EXT#@correodemimobilgmail.onmicrosoft.com"
 
   key_vault              = "kv-dev-helloworld"
   current_user_object_id = data.azurerm_client_config.current.object_id
@@ -161,14 +160,18 @@ resource "azurerm_role_assignment" "app_storage_blob_data_reader" {
 
 # (RBAC) Allows the user(me) to manage blob's content.
 resource "azurerm_role_assignment" "current_user_storage_blob_owner" {
-  scope = azurerm_storage_account.storage.id
+  scope                = azurerm_storage_account.storage.id
   role_definition_name = "Storage Blob Data Owner"
-  principal_id = data.azurerm_client_config.current.object_id
+  principal_id         = data.azurerm_client_config.current.object_id
 }
 
 ############################################################
 # SQL Server
 ############################################################
+
+data "azuread_user" "sql_admin" {
+  user_principal_name = local.sql_entra_admin_user_principal_name
+}
 
 resource "azurerm_mssql_server" "sql" {
   name                = local.sql_server
@@ -177,11 +180,16 @@ resource "azurerm_mssql_server" "sql" {
 
   version = "12.0"
 
-  administrator_login          = local.sql_admin_login
-  administrator_login_password = local.sql_admin_password
-
   minimum_tls_version           = "1.2"
   public_network_access_enabled = true
+
+  # This administrator can create Microsoft Entra users inside the database.
+  azuread_administrator {
+    login_username              = data.azuread_user.sql_admin.user_principal_name
+    object_id                   = data.azuread_user.sql_admin.object_id
+    tenant_id                   = data.azurerm_client_config.current.tenant_id
+    azuread_authentication_only = true
+  }
 
   tags = local.tags
 }
@@ -223,11 +231,11 @@ resource "azurerm_key_vault" "kv" {
   tags = local.tags
 }
 
-# (RBAC)
+# (RBAC) Assign role to user(me)
 resource "azurerm_role_assignment" "current_user_kv_admin" {
-  scope = azurerm_key_vault.kv.id
+  scope                = azurerm_key_vault.kv.id
   role_definition_name = "Key Vault Administrator"
-  principal_id = local.current_user_object_id
+  principal_id         = local.current_user_object_id
 }
 
 # (RBAC) Allows the web app's managed identity to read values from Key Vault.
@@ -266,6 +274,10 @@ output "app_service_plan" {
 
 output "web_app" {
   value = azurerm_linux_web_app.app.name
+}
+
+output "web_app_principal_id" {
+  value = azurerm_linux_web_app.app.identity[0].principal_id
 }
 
 output "storage_account" {
