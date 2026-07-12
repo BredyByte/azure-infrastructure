@@ -122,6 +122,10 @@ resource "azurerm_subnet" "app_service_integration" {
 
     service_delegation {
       name = "Microsoft.Web/serverFarms"
+      actions = [
+        # Reserve that subnet for App Service use.
+        "Microsoft.Network/virtualNetworks/subnets/action",
+      ]
     }
   }
 }
@@ -168,6 +172,9 @@ resource "azurerm_linux_web_app" "app" {
 
   https_only = true
 
+  # Sends the App Service's private outbound traffic through the delegated subnet.
+  virtual_network_subnet_id = azurerm_subnet.app_service_integration.id
+
   # Creates a Microsoft Entra service principal for this App Service.
   identity {
     type = "SystemAssigned"
@@ -182,6 +189,8 @@ resource "azurerm_linux_web_app" "app" {
 
   site_config {
     always_on = true
+    # Route all app outbound traffic through your VNet.
+    vnet_route_all_enabled = true
 
     application_stack {
       python_version = "3.12"
