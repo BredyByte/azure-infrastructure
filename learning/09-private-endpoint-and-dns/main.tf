@@ -68,6 +68,10 @@ locals {
   private_endpoints_subnet_name     = "snet-private-endpoints"
   private_endpoints_subnet_prefixes = ["10.20.2.0/27"]
 
+  private_dns_zone_sql       = "privatelink.database.windows.net"
+  private_dns_zone_key_vault = "privatelink.vaultcore.azure.net"
+  private_dns_zone_storage   = "privatelink.blob.core.windows.net"
+
   secrets = {
     welcome-message = "Welcome David from Azure Key Vault!"
   }
@@ -140,6 +144,55 @@ resource "azurerm_subnet" "private_endpoints" {
 }
 
 ############################################################
+# Private DNS Zones and VNet Links
+############################################################
+
+resource "azurerm_private_dns_zone" "sql" {
+  name                = local.private_dns_zone_sql
+  resource_group_name = azurerm_resource_group.rg.name
+  tags                = local.tags
+}
+
+resource "azurerm_private_dns_zone" "key_vault" {
+  name                = local.private_dns_zone_key_vault
+  resource_group_name = azurerm_resource_group.rg.name
+  tags                = local.tags
+}
+
+resource "azurerm_private_dns_zone" "storage" {
+  name                = local.private_dns_zone_storage
+  resource_group_name = azurerm_resource_group.rg.name
+  tags                = local.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "sql" {
+  name                  = "link-sql"
+  resource_group_name   = azurerm_resource_group.rg.name
+  private_dns_zone_name = azurerm_private_dns_zone.sql.name
+  virtual_network_id    = azurerm_virtual_network.vnet.id
+  registration_enabled  = false
+  tags                  = local.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "key_vault" {
+  name                  = "link-key-vault"
+  resource_group_name   = azurerm_resource_group.rg.name
+  private_dns_zone_name = azurerm_private_dns_zone.key_vault.name
+  virtual_network_id    = azurerm_virtual_network.vnet.id
+  registration_enabled  = false
+  tags                  = local.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "storage" {
+  name                  = "link-storage"
+  resource_group_name   = azurerm_resource_group.rg.name
+  private_dns_zone_name = azurerm_private_dns_zone.storage.name
+  virtual_network_id    = azurerm_virtual_network.vnet.id
+  registration_enabled  = false
+  tags                  = local.tags
+}
+
+############################################################
 # App Service Plan
 ############################################################
 
@@ -209,8 +262,9 @@ resource "azurerm_storage_account" "storage" {
   resource_group_name = azurerm_resource_group.rg.name
   location            = azurerm_resource_group.rg.location
 
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
+  account_tier                  = "Standard"
+  account_replication_type      = "LRS"
+  public_network_access_enabled = false
 
   tags = local.tags
 }
@@ -253,7 +307,7 @@ resource "azurerm_mssql_server" "sql" {
   version = "12.0"
 
   minimum_tls_version           = "1.2"
-  public_network_access_enabled = true
+  public_network_access_enabled = false
 
   # This administrator can create Microsoft Entra users inside the database.
   azuread_administrator {
@@ -298,7 +352,8 @@ resource "azurerm_key_vault" "kv" {
   soft_delete_retention_days = 7
   purge_protection_enabled   = false
 
-  rbac_authorization_enabled = true
+  rbac_authorization_enabled    = true
+  public_network_access_enabled = false
 
   tags = local.tags
 }
@@ -330,6 +385,73 @@ resource "azurerm_key_vault_secret" "this" {
   value = each.value
 
   key_vault_id = azurerm_key_vault.kv.id
+}
+
+############################################################
+# Private Endpoints
+############################################################
+
+resource "azurerm_private_endpoint" "sql" {
+  name                = "pe-sql-dev-helloworld"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  subnet_id           = azurerm_subnet.private_endpoints.id
+
+  private_service_connection {
+    name                           = "psc-sql-dev-helloworld"
+    private_connection_resource_id = azurerm_mssql_server.sql.id
+    subresource_names              = ["sqlServer"]
+    is_manual_connection           = false
+  }
+
+  private_dns_zone_group {
+    name                 = "sql-dns-zone-group"
+    private_dns_zone_ids = [azurerm_private_dns_zone.sql.id]
+  }
+
+  tags = local.tags
+}
+
+resource "azurerm_private_endpoint" "key_vault" {
+  name                = "pe-kv-dev-helloworld"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  subnet_id           = azurerm_subnet.private_endpoints.id
+
+  private_service_connection {
+    name                           = "psc-kv-dev-helloworld"
+    private_connection_resource_id = azurerm_key_vault.kv.id
+    subresource_names              = ["vault"]
+    is_manual_connection           = false
+  }
+
+  private_dns_zone_group {
+    name                 = "key-vault-dns-zone-group"
+    private_dns_zone_ids = [azurerm_private_dns_zone.key_vault.id]
+  }
+
+  tags = local.tags
+}
+
+resource "azurerm_private_endpoint" "storage_blob" {
+  name                = "pe-storage-dev-helloworld"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  subnet_id           = azurerm_subnet.private_endpoints.id
+
+  private_service_connection {
+    name                           = "psc-storage-blob-dev-helloworld"
+    private_connection_resource_id = azurerm_storage_account.storage.id
+    subresource_names              = ["blob"]
+    is_manual_connection           = false
+  }
+
+  private_dns_zone_group {
+    name                 = "storage-dns-zone-group"
+    private_dns_zone_ids = [azurerm_private_dns_zone.storage.id]
+  }
+
+  tags = local.tags
 }
 
 ############################################################
