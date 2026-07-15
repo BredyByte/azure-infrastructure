@@ -140,7 +140,52 @@ resource "azurerm_subnet" "private_endpoints" {
   virtual_network_name = azurerm_virtual_network.vnet.name
   address_prefixes     = local.private_endpoints_subnet_prefixes
 
-  private_endpoint_network_policies = "Disabled"
+  # Allow the NSG to filter traffic to private endpoint NICs.
+  # https://learn.microsoft.com/en-us/azure/private-link/disable-private-endpoint-network-policy?tabs=network-policy-json
+  private_endpoint_network_policies = "NetworkSecurityGroupEnabled"
+}
+
+############################################################
+# Network Security Groups
+############################################################
+
+resource "azurerm_network_security_group" "app_gateway" {
+  name                = "nsg-app-gateway"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  tags = local.tags
+}
+
+resource "azurerm_network_security_group" "app_service" {
+  name                = "nsg-app-service"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  tags = local.tags
+}
+
+resource "azurerm_network_security_group" "private_endpoints" {
+  name                = "nsg-private-endpoints"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  tags = local.tags
+}
+
+resource "azurerm_subnet_network_security_group_association" "app_gateway" {
+  subnet_id                 = azurerm_subnet.app_gateway.id
+  network_security_group_id = azurerm_network_security_group.app_gateway.id
+}
+
+resource "azurerm_subnet_network_security_group_association" "app_service" {
+  subnet_id                 = azurerm_subnet.app_service_integration.id
+  network_security_group_id = azurerm_network_security_group.app_service.id
+}
+
+resource "azurerm_subnet_network_security_group_association" "private_endpoints" {
+  subnet_id                 = azurerm_subnet.private_endpoints.id
+  network_security_group_id = azurerm_network_security_group.private_endpoints.id
 }
 
 ############################################################
