@@ -358,12 +358,14 @@ resource "azurerm_key_vault" "kv" {
   tags = local.tags
 }
 
+# Temporarily disabled because Terraform is running outside the VNet and
+# cannot reach the private Key Vault to create or delete secrets.
 # (RBAC) Assign role to user(me)
-resource "azurerm_role_assignment" "current_user_kv_admin" {
-  scope                = azurerm_key_vault.kv.id
-  role_definition_name = "Key Vault Administrator"
-  principal_id         = local.current_user_object_id
-}
+# resource "azurerm_role_assignment" "current_user_kv_admin" {
+#   scope                = azurerm_key_vault.kv.id
+#   role_definition_name = "Key Vault Administrator"
+#   principal_id         = local.current_user_object_id
+# }
 
 # (RBAC) Allows the web app's managed identity to read values from Key Vault.
 resource "azurerm_role_assignment" "app_key_vault_secrets_user" {
@@ -372,20 +374,22 @@ resource "azurerm_role_assignment" "app_key_vault_secrets_user" {
   principal_id         = azurerm_linux_web_app.app.identity[0].principal_id
 }
 
+# Temporarily disabled because Terraform is running outside the VNet and
+# cannot reach the private Key Vault to create or delete secrets.
 # Key Vault secrets creation
-resource "azurerm_key_vault_secret" "this" {
+# resource "azurerm_key_vault_secret" "this" {
 
-  depends_on = [
-    azurerm_role_assignment.current_user_kv_admin
-  ]
+#   depends_on = [
+#     azurerm_role_assignment.current_user_kv_admin
+#   ]
 
-  for_each = local.secrets
+#   for_each = local.secrets
 
-  name  = each.key
-  value = each.value
+#   name  = each.key
+#   value = each.value
 
-  key_vault_id = azurerm_key_vault.kv.id
-}
+#   key_vault_id = azurerm_key_vault.kv.id
+# }
 
 ############################################################
 # Private Endpoints
