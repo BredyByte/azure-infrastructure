@@ -99,6 +99,7 @@ resource "azurerm_resource_group" "rg" {
 # Virtual Network
 ############################################################
 
+# Create the VNet
 resource "azurerm_virtual_network" "vnet" {
   name                = local.virtual_network_name
   location            = azurerm_resource_group.rg.location
@@ -134,6 +135,7 @@ resource "azurerm_subnet" "app_service_integration" {
   }
 }
 
+# Create the private endpoint subnet
 resource "azurerm_subnet" "private_endpoints" {
   name                 = local.private_endpoints_subnet_name
   resource_group_name  = azurerm_resource_group.rg.name
@@ -240,6 +242,7 @@ resource "azurerm_subnet_network_security_group_association" "private_endpoints"
 # Private DNS Zones and VNet Links
 ############################################################
 
+# Create the SQL private DNS zone
 resource "azurerm_private_dns_zone" "sql" {
   name                = local.private_dns_zone_sql
   resource_group_name = azurerm_resource_group.rg.name
@@ -258,6 +261,7 @@ resource "azurerm_private_dns_zone" "storage" {
   tags                = local.tags
 }
 
+# Link the DNS zone to the VNet
 resource "azurerm_private_dns_zone_virtual_network_link" "sql" {
   name                  = "link-sql"
   resource_group_name   = azurerm_resource_group.rg.name
@@ -488,12 +492,14 @@ resource "azurerm_role_assignment" "app_key_vault_secrets_user" {
 # Private Endpoints
 ############################################################
 
+# Connect SQL to the private endpoint subnet
 resource "azurerm_private_endpoint" "sql" {
   name                = "pe-sql-dev-helloworld"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
   subnet_id           = azurerm_subnet.private_endpoints.id
 
+  # Create a network interface (NIC) and assigne  a dynamic IP
   private_service_connection {
     name                           = "psc-sql-dev-helloworld"
     private_connection_resource_id = azurerm_mssql_server.sql.id
@@ -501,6 +507,7 @@ resource "azurerm_private_endpoint" "sql" {
     is_manual_connection           = false
   }
 
+  # Assign the SQL private endpoint to the DNS zone
   private_dns_zone_group {
     name                 = "sql-dns-zone-group"
     private_dns_zone_ids = [azurerm_private_dns_zone.sql.id]
