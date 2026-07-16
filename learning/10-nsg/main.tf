@@ -173,6 +173,54 @@ resource "azurerm_network_security_group" "private_endpoints" {
   tags = local.tags
 }
 
+# Allows the App Service integration subnet to reach Azure SQL privately.
+resource "azurerm_network_security_rule" "allow_app_service_to_sql" {
+  name                        = "allow-app-service-to-sql"
+  priority                    = 100
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "1433"
+  source_address_prefix       = "10.20.1.0/26"
+  destination_address_prefix  = "10.20.2.0/27"
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.private_endpoints.name
+  description                 = "Allows the App Service integration subnet to reach Azure SQL privately."
+}
+
+# Allows the App Service integration subnet to reach Key Vault and Blob Storage privately.
+resource "azurerm_network_security_rule" "allow_app_service_to_private_https" {
+  name                        = "allow-app-service-to-private-https"
+  priority                    = 110
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "443"
+  source_address_prefix       = "10.20.1.0/26"
+  destination_address_prefix  = "10.20.2.0/27"
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.private_endpoints.name
+  description                 = "Allows the App Service integration subnet to reach Key Vault and Blob Storage privately."
+}
+
+# Blocks other VNet traffic before Azure's broad AllowVNetInBound default rule.
+resource "azurerm_network_security_rule" "deny_vnet_to_private_endpoints" {
+  name                        = "deny-vnet-to-private-endpoints"
+  priority                    = 200
+  direction                   = "Inbound"
+  access                      = "Deny"
+  protocol                    = "*"
+  source_port_range           = "*"
+  destination_port_range      = "*"
+  source_address_prefix       = "VirtualNetwork"
+  destination_address_prefix  = "10.20.2.0/27"
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.private_endpoints.name
+  description                 = "Blocks other VNet traffic before Azure's broad AllowVNetInBound default rule."
+}
+
 resource "azurerm_subnet_network_security_group_association" "app_gateway" {
   subnet_id                 = azurerm_subnet.app_gateway.id
   network_security_group_id = azurerm_network_security_group.app_gateway.id
