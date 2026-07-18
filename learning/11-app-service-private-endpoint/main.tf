@@ -208,6 +208,22 @@ resource "azurerm_network_security_rule" "allow_app_service_to_private_https" {
   description                 = "Allows the App Service integration subnet to reach Key Vault and Blob Storage privately."
 }
 
+# Allows the future Application Gateway subnet to reach the App Service private endpoint.
+resource "azurerm_network_security_rule" "allow_gateway_to_app_service" {
+  name                        = "allow-gateway-to-app-service"
+  priority                    = 120
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "443"
+  source_address_prefix       = "10.20.0.0/24"
+  destination_address_prefix  = "10.20.2.0/27"
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.private_endpoints.name
+  description                 = "Allows Application Gateway to reach the App Service private endpoint over HTTPS."
+}
+
 # Blocks other VNet traffic before Azure's broad AllowVNetInBound default rule.
 resource "azurerm_network_security_rule" "deny_vnet_to_private_endpoints" {
   name                        = "deny-vnet-to-private-endpoints"
