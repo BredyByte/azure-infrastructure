@@ -71,6 +71,7 @@ locals {
   private_dns_zone_sql       = "privatelink.database.windows.net"
   private_dns_zone_key_vault = "privatelink.vaultcore.azure.net"
   private_dns_zone_storage   = "privatelink.blob.core.windows.net"
+  private_dns_zone_app       = "privatelink.azurewebsites.net"
 
   secrets = {
     welcome-message = "Welcome David from Azure Key Vault!"
@@ -261,6 +262,12 @@ resource "azurerm_private_dns_zone" "storage" {
   tags                = local.tags
 }
 
+resource "azurerm_private_dns_zone" "app" {
+  name                = local.private_dns_zone_app
+  resource_group_name = azurerm_resource_group.rg.name
+  tags                = local.tags
+}
+
 # Link the DNS zone to the VNet
 resource "azurerm_private_dns_zone_virtual_network_link" "sql" {
   name                  = "link-sql"
@@ -284,6 +291,16 @@ resource "azurerm_private_dns_zone_virtual_network_link" "storage" {
   name                  = "link-storage"
   resource_group_name   = azurerm_resource_group.rg.name
   private_dns_zone_name = azurerm_private_dns_zone.storage.name
+  virtual_network_id    = azurerm_virtual_network.vnet.id
+  registration_enabled  = false
+  tags                  = local.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "app" {
+  # Azure generated this name during the manual private-endpoint creation.
+  name                  = "mu7ibj3lhg6kc"
+  resource_group_name   = azurerm_resource_group.rg.name
+  private_dns_zone_name = azurerm_private_dns_zone.app.name
   virtual_network_id    = azurerm_virtual_network.vnet.id
   registration_enabled  = false
   tags                  = local.tags
@@ -553,6 +570,33 @@ resource "azurerm_private_endpoint" "storage_blob" {
   private_dns_zone_group {
     name                 = "storage-dns-zone-group"
     private_dns_zone_ids = [azurerm_private_dns_zone.storage.id]
+  }
+
+  tags = local.tags
+}
+
+# Allows private inbound access to the web application from the VNet.
+resource "azurerm_private_endpoint" "app" {
+  name                = "pe-app-dev-helloworld"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  subnet_id           = azurerm_subnet.private_endpoints.id
+
+  # Preserve the Azure-generated NIC name from the manually created endpoint.
+  custom_network_interface_name = "pe-app-dev-helloworld-nic"
+
+  private_service_connection {
+    # Preserve the connection name from the manually created endpoint.
+    name                           = "pe-app-dev-helloworld"
+    private_connection_resource_id = azurerm_linux_web_app.app.id
+    subresource_names              = ["sites"]
+    is_manual_connection           = false
+  }
+
+  private_dns_zone_group {
+    # Azure created the manual DNS zone group with this default name.
+    name                 = "default"
+    private_dns_zone_ids = [azurerm_private_dns_zone.app.id]
   }
 
   tags = local.tags
