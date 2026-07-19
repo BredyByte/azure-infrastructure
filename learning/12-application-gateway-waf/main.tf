@@ -807,6 +807,38 @@ resource "azurerm_application_gateway" "app_gateway" {
 
 
 ############################################################
+# Application Gateway Diagnostics
+############################################################
+
+# Central workspace that stores and makes Azure monitoring logs searchable with KQL.
+resource "azurerm_log_analytics_workspace" "monitoring" {
+  name                = "law-dev-helloworld"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  sku                 = "PerGB2018"
+  retention_in_days   = 30
+
+  tags = local.tags
+}
+
+# Sends Application Gateway access and WAF logs to the Log Analytics Workspace.
+resource "azurerm_monitor_diagnostic_setting" "app_gateway" {
+  name                           = "diag-app-gateway"
+  target_resource_id             = azurerm_application_gateway.app_gateway.id
+  log_analytics_workspace_id     = azurerm_log_analytics_workspace.monitoring.id
+  log_analytics_destination_type = "Dedicated"
+
+  enabled_log {
+    category = "ApplicationGatewayAccessLog"
+  }
+
+  enabled_log {
+    category = "ApplicationGatewayFirewallLog"
+  }
+}
+
+
+############################################################
 # Outputs
 ############################################################
 
