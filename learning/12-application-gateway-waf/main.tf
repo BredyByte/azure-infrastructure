@@ -676,6 +676,26 @@ resource "azurerm_private_endpoint" "app" {
 # Application Gateway and Web Application Firewall
 ############################################################
 
+# A standalone identity is required for Application Gateway to retrieve the
+# Key Vault certificate used by its HTTPS listener.
+resource "azurerm_user_assigned_identity" "app_gateway_key_vault" {
+  name                = "id-appgw-keyvault"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  # This identity can only be assigned to resources in France Central.
+  isolation_scope = "Regional"
+
+  tags = local.tags
+}
+
+# Allows only this Gateway identity to read the certificate's backing secret.
+resource "azurerm_role_assignment" "app_gateway_key_vault_secrets_user" {
+  scope                = azurerm_key_vault.kv.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azurerm_user_assigned_identity.app_gateway_key_vault.principal_id
+}
+
 # The only public entry point for the application architecture.
 resource "azurerm_public_ip" "app_gateway" {
   name                = "pip-appgw-dev-helloworld"
@@ -722,6 +742,12 @@ resource "azurerm_application_gateway" "app_gateway" {
   name                = "agw-dev-helloworld"
   location            = azurerm_resource_group.rg.location
   resource_group_name = azurerm_resource_group.rg.name
+
+  # Uses the user-assigned identity to authenticate to Key Vault.
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.app_gateway_key_vault.id]
+  }
 
   http2_enabled      = true
   firewall_policy_id = azurerm_web_application_firewall_policy.app_gateway.id
