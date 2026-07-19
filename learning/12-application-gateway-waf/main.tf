@@ -671,6 +671,141 @@ resource "azurerm_private_endpoint" "app" {
   tags = local.tags
 }
 
+
+############################################################
+# Application Gateway and Web Application Firewall
+############################################################
+
+# The only public entry point for the application architecture.
+resource "azurerm_public_ip" "app_gateway" {
+  name                = "pip-appgw-dev-helloworld"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  allocation_method       = "Static"
+  sku                     = "Standard"
+  zones                   = ["1", "2", "3"]
+  idle_timeout_in_minutes = 4
+
+  tags = local.tags
+}
+
+# This policy inspects requests before they are forwarded to the web app.
+# Detection mode logs suspicious requests but does not yet block them.
+resource "azurerm_web_application_firewall_policy" "app_gateway" {
+  name                = "wafpol-dev-helloworld"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  policy_settings {
+    enabled                          = true
+    mode                             = "Detection"
+    request_body_check               = true
+    request_body_enforcement         = true
+    request_body_inspect_limit_in_kb = 128
+    file_upload_enforcement          = true
+    file_upload_limit_in_mb          = 100
+    max_request_body_size_in_kb      = 128
+  }
+
+  managed_rules {
+    managed_rule_set {
+      type    = "OWASP"
+      version = "3.2"
+    }
+  }
+
+  tags = local.tags
+}
+
+resource "azurerm_application_gateway" "app_gateway" {
+  name                = "agw-dev-helloworld"
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  http2_enabled      = true
+  firewall_policy_id = azurerm_web_application_firewall_policy.app_gateway.id
+  zones              = ["1", "2", "3"]
+
+  sku {
+    name = "WAF_v2"
+    tier = "WAF_v2"
+  }
+
+  autoscale_configuration {
+    min_capacity = 1
+    max_capacity = 2
+  }
+
+  gateway_ip_configuration {
+    name      = "appGatewayIpConfig"
+    subnet_id = azurerm_subnet.app_gateway.id
+  }
+
+  frontend_port {
+    name = "port_80"
+    port = 80
+  }
+
+  frontend_ip_configuration {
+    name                 = "appGwPublicFrontendIpIPv4"
+    public_ip_address_id = azurerm_public_ip.app_gateway.id
+  }
+
+  # Keep the normal App Service hostname. Private DNS resolves it to the
+  # private endpoint IP from inside this VNet.
+  backend_address_pool {
+    name  = "pool-app-service"
+    fqdns = [azurerm_linux_web_app.app.default_hostname]
+  }
+
+  backend_http_settings {
+    name                  = "bhs-app-service-https"
+    cookie_based_affinity = "Disabled"
+    port                  = 443
+    protocol              = "Https"
+    request_timeout       = 30
+    host_name             = azurerm_linux_web_app.app.default_hostname
+    probe_name            = "probe-app-service"
+  }
+
+  # Azure checks this endpoint before sending users' requests to the backend.
+  probe {
+    name                                      = "probe-app-service"
+    protocol                                  = "Https"
+    host                                      = azurerm_linux_web_app.app.default_hostname
+    path                                      = "/"
+    interval                                  = 30
+    timeout                                   = 30
+    unhealthy_threshold                       = 3
+    minimum_servers                           = 0
+    pick_host_name_from_backend_http_settings = false
+
+    match {
+      status_code = ["200-399"]
+    }
+  }
+
+  http_listener {
+    name                           = "listener-http"
+    frontend_ip_configuration_name = "appGwPublicFrontendIpIPv4"
+    frontend_port_name             = "port_80"
+    protocol                       = "Http"
+  }
+
+  request_routing_rule {
+    name                       = "rule-http-to-app"
+    rule_type                  = "Basic"
+    priority                   = 1
+    http_listener_name         = "listener-http"
+    backend_address_pool_name  = "pool-app-service"
+    backend_http_settings_name = "bhs-app-service-https"
+  }
+
+  tags = local.tags
+}
+
+
 ############################################################
 # Outputs
 ############################################################
