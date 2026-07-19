@@ -256,6 +256,59 @@ resource "azurerm_subnet_network_security_group_association" "private_endpoints"
 }
 
 ############################################################
+# Application Gateway NSG Rules
+############################################################
+
+# Allows users on the Internet to reach the HTTP listener.
+resource "azurerm_network_security_rule" "allow_http_from_internet" {
+  name                        = "allow-http-from-internet"
+  priority                    = 100
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "80"
+  source_address_prefix       = "Internet"
+  destination_address_prefix  = "10.20.0.0/24"
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.app_gateway.name
+  description                 = "Allows HTTP traffic from the Internet to Application Gateway."
+}
+
+# Reserved now for the future HTTPS listener.
+resource "azurerm_network_security_rule" "allow_https_from_internet" {
+  name                        = "allow-https-from-internet"
+  priority                    = 110
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "443"
+  source_address_prefix       = "Internet"
+  destination_address_prefix  = "10.20.0.0/24"
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.app_gateway.name
+  description                 = "Allows HTTPS traffic from the Internet to Application Gateway."
+}
+
+# Required by the Application Gateway v2 control plane.
+# The destination must be Any: GatewayManager is not client traffic to the subnet.
+resource "azurerm_network_security_rule" "allow_gateway_manager" {
+  name                        = "allow-gateway-manager"
+  priority                    = 120
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "65200-65535"
+  source_address_prefix       = "GatewayManager"
+  destination_address_prefix  = "*"
+  resource_group_name         = azurerm_resource_group.rg.name
+  network_security_group_name = azurerm_network_security_group.app_gateway.name
+  description                 = "Allows the required Application Gateway v2 control-plane traffic."
+}
+
+############################################################
 # Private DNS Zones and VNet Links
 ############################################################
 
