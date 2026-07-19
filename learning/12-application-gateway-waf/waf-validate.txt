@@ -1,0 +1,40 @@
+# Confirm Application Gateway is deployed with WAF
+az network application-gateway show \
+  --resource-group rg-dev-helloworld \
+  --name agw-dev-helloworld \
+  --query "{state:provisioningState,sku:sku.name,tier:sku.tier,wafPolicy:firewallPolicy.id}" \
+  --output json
+
+
+# Confirm the public IP is attached
+az network public-ip show \
+  --resource-group rg-dev-helloworld \
+  --name pip-appgw-dev-helloworld \
+  --query "{ip:ipAddress,allocation:publicIPAllocationMethod,sku:sku.name}" \
+  --output json
+
+
+# Confirm diagnostics are enabled
+az monitor diagnostic-settings list \
+  --resource "/subscriptions/e1077e02-b40a-4b0c-933a-5f85532353aa/resourceGroups/rg-dev-helloworld/providers/Microsoft.Network/applicationGateways/agw-dev-helloworld" \
+  --output json
+
+
+# generate a test request to validate WAF is working
+curl -i "http://4.178.200.134/?q=%3Cscript%3Ealert(1)%3C%2Fscript%3E"
+
+
+# KQL command to check access logs
+AGWAccessLogs
+| where TimeGenerated > ago(24h)
+| project TimeGenerated, ClientIp, HttpStatus, RequestUri, ServerRouted, WafMode
+| order by TimeGenerated desc
+| take 50
+
+
+# KQL command to check waf logs
+AGWFirewallLogs
+| where TimeGenerated > ago(24h)
+| project TimeGenerated, Action, RuleId, Message, RequestUri, ClientIp
+| order by TimeGenerated desc
+| take 50
