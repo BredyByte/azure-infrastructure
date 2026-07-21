@@ -73,6 +73,14 @@ locals {
   private_dns_zone_storage   = "privatelink.blob.core.windows.net"
   private_dns_zone_app       = "privatelink.azurewebsites.net"
 
+  # Public hostname resolved by Cloudflare DNS to the Application Gateway IP.
+  public_domain_name = "iloveyourmama.com"
+
+  # The PFX is imported manually (or later by a pipeline) into Key Vault.
+  # Only its versionless secret URI is referenced by Terraform.
+  tls_certificate_name         = "tls-iloveyourmama-com"
+  gateway_ssl_certificate_name = "ssl-iloveyourmama-com"
+
   secrets = {
     welcome-message = "Welcome David from Azure Key Vault!"
   }
@@ -749,6 +757,11 @@ resource "azurerm_application_gateway" "app_gateway" {
     identity_ids = [azurerm_user_assigned_identity.app_gateway_key_vault.id]
   }
 
+  # The Key Vault certificate must exist before this HTTPS configuration is applied.
+  depends_on = [
+    azurerm_role_assignment.app_gateway_key_vault_secrets_user,
+  ]
+
   http2_enabled      = true
   firewall_policy_id = azurerm_web_application_firewall_policy.app_gateway.id
   zones              = ["1", "2", "3"]
@@ -773,9 +786,21 @@ resource "azurerm_application_gateway" "app_gateway" {
     port = 80
   }
 
+  frontend_port {
+    name = "port_443"
+    port = 443
+  }
+
   frontend_ip_configuration {
     name                 = "appGwPublicFrontendIpIPv4"
     public_ip_address_id = azurerm_public_ip.app_gateway.id
+  }
+
+  # This is a Key Vault reference, not the PFX content. The versionless URI
+  # lets Application Gateway detect future certificate versions automatically.
+  ssl_certificate {
+    name                = local.gateway_ssl_certificate_name
+    key_vault_secret_id = "https://${local.key_vault}.vault.azure.net/secrets/${local.tls_certificate_name}"
   }
 
   # Keep the normal App Service hostname. Private DNS resolves it to the
@@ -817,13 +842,42 @@ resource "azurerm_application_gateway" "app_gateway" {
     frontend_ip_configuration_name = "appGwPublicFrontendIpIPv4"
     frontend_port_name             = "port_80"
     protocol                       = "Http"
+    host_name                      = local.public_domain_name
+    require_sni                    = false
+  }
+
+  http_listener {
+    name                           = "listener-https"
+    frontend_ip_configuration_name = "appGwPublicFrontendIpIPv4"
+    frontend_port_name             = "port_443"
+    protocol                       = "Https"
+    host_name                      = local.public_domain_name
+    ssl_certificate_name           = local.gateway_ssl_certificate_name
+    require_sni                    = true
+  }
+
+  # Preserve request paths and query strings when redirecting HTTP to HTTPS.
+  redirect_configuration {
+    name                 = "redirect-http-to-https"
+    redirect_type        = "Permanent"
+    target_listener_name = "listener-https"
+    include_path         = true
+    include_query_string = true
   }
 
   request_routing_rule {
-    name                       = "rule-http-to-app"
+    name                        = "rule-http-to-https"
+    rule_type                   = "Basic"
+    priority                    = 1
+    http_listener_name          = "listener-http"
+    redirect_configuration_name = "redirect-http-to-https"
+  }
+
+  request_routing_rule {
+    name                       = "rule-https-to-app"
     rule_type                  = "Basic"
-    priority                   = 1
-    http_listener_name         = "listener-http"
+    priority                   = 2
+    http_listener_name         = "listener-https"
     backend_address_pool_name  = "pool-app-service"
     backend_http_settings_name = "bhs-app-service-https"
   }
