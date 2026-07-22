@@ -56,6 +56,12 @@ locals {
   key_vault              = "kv-dev-helloworld"
   current_user_object_id = data.azurerm_client_config.current.object_id
 
+  deployment_vnet_name          = "vnet-dev-helloworld-deployment"
+  deployment_vnet_address_space = ["10.30.0.0/16"]
+
+  deployment_agent_subnet_name     = "snet-deployment-agent"
+  deployment_agent_subnet_prefixes = ["10.30.1.0/24"]
+
   virtual_network_name          = "vnet-dev-helloworld"
   virtual_network_address_space = ["10.20.0.0/16"]
 
@@ -1012,6 +1018,26 @@ resource "azurerm_monitor_diagnostic_setting" "app_gateway" {
   }
 }
 
+
+############################################################
+# Virtual Network for Deploment agent
+############################################################
+
+resource "azurerm_virtual_network" "deployment" {
+  name                = local.deployment_vnet_name
+  location            = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  address_space       = local.deployment_vnet_address_space
+
+  tags = local.tags
+}
+
+resource "azurerm_subnet" "deployment_agent" {
+  name                 = local.deployment_agent_subnet_name
+  resource_group_name = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.deployment.name
+  address_prefixes     = local.deployment_agent_subnet_prefixes
+}
 
 ############################################################
 # Outputs
