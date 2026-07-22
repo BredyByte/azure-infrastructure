@@ -746,6 +746,7 @@ resource "azurerm_web_application_firewall_policy" "app_gateway" {
   tags = local.tags
 }
 
+# HTTP
 resource "azurerm_application_gateway" "app_gateway" {
   name                = "agw-dev-helloworld"
   location            = azurerm_resource_group.rg.location
@@ -756,11 +757,6 @@ resource "azurerm_application_gateway" "app_gateway" {
     type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.app_gateway_key_vault.id]
   }
-
-  # The Key Vault certificate must exist before this HTTPS configuration is applied.
-  depends_on = [
-    azurerm_role_assignment.app_gateway_key_vault_secrets_user,
-  ]
 
   http2_enabled      = true
   firewall_policy_id = azurerm_web_application_firewall_policy.app_gateway.id
@@ -786,21 +782,9 @@ resource "azurerm_application_gateway" "app_gateway" {
     port = 80
   }
 
-  frontend_port {
-    name = "port_443"
-    port = 443
-  }
-
   frontend_ip_configuration {
     name                 = "appGwPublicFrontendIpIPv4"
     public_ip_address_id = azurerm_public_ip.app_gateway.id
-  }
-
-  # This is a Key Vault reference, not the PFX content. The versionless URI
-  # lets Application Gateway detect future certificate versions automatically.
-  ssl_certificate {
-    name                = local.gateway_ssl_certificate_name
-    key_vault_secret_id = "https://${local.key_vault}.vault.azure.net/secrets/${local.tls_certificate_name}"
   }
 
   # Keep the normal App Service hostname. Private DNS resolves it to the
@@ -842,48 +826,159 @@ resource "azurerm_application_gateway" "app_gateway" {
     frontend_ip_configuration_name = "appGwPublicFrontendIpIPv4"
     frontend_port_name             = "port_80"
     protocol                       = "Http"
-    host_name                      = local.public_domain_name
-    require_sni                    = false
-  }
-
-  http_listener {
-    name                           = "listener-https"
-    frontend_ip_configuration_name = "appGwPublicFrontendIpIPv4"
-    frontend_port_name             = "port_443"
-    protocol                       = "Https"
-    host_name                      = local.public_domain_name
-    ssl_certificate_name           = local.gateway_ssl_certificate_name
-    require_sni                    = true
-  }
-
-  # Preserve request paths and query strings when redirecting HTTP to HTTPS.
-  redirect_configuration {
-    name                 = "redirect-http-to-https"
-    redirect_type        = "Permanent"
-    target_listener_name = "listener-https"
-    include_path         = true
-    include_query_string = true
   }
 
   request_routing_rule {
-    name                        = "rule-http-to-https"
-    rule_type                   = "Basic"
-    priority                    = 1
-    http_listener_name          = "listener-http"
-    redirect_configuration_name = "redirect-http-to-https"
-  }
-
-  request_routing_rule {
-    name                       = "rule-https-to-app"
+    name                       = "rule-http-to-app"
     rule_type                  = "Basic"
-    priority                   = 2
-    http_listener_name         = "listener-https"
+    priority                   = 1
+    http_listener_name         = "listener-http"
     backend_address_pool_name  = "pool-app-service"
     backend_http_settings_name = "bhs-app-service-https"
   }
 
   tags = local.tags
 }
+
+# HTTPS
+# resource "azurerm_application_gateway" "app_gateway" {
+#   name                = "agw-dev-helloworld"
+#   location            = azurerm_resource_group.rg.location
+#   resource_group_name = azurerm_resource_group.rg.name
+
+#   # Uses the user-assigned identity to authenticate to Key Vault.
+#   identity {
+#     type         = "UserAssigned"
+#     identity_ids = [azurerm_user_assigned_identity.app_gateway_key_vault.id]
+#   }
+
+#   # The Key Vault certificate must exist before this HTTPS configuration is applied.
+#   depends_on = [
+#     azurerm_role_assignment.app_gateway_key_vault_secrets_user,
+#   ]
+
+#   http2_enabled      = true
+#   firewall_policy_id = azurerm_web_application_firewall_policy.app_gateway.id
+#   zones              = ["1", "2", "3"]
+
+#   sku {
+#     name = "WAF_v2"
+#     tier = "WAF_v2"
+#   }
+
+#   autoscale_configuration {
+#     min_capacity = 1
+#     max_capacity = 2
+#   }
+
+#   gateway_ip_configuration {
+#     name      = "appGatewayIpConfig"
+#     subnet_id = azurerm_subnet.app_gateway.id
+#   }
+
+#   frontend_port {
+#     name = "port_80"
+#     port = 80
+#   }
+
+#   frontend_port {
+#     name = "port_443"
+#     port = 443
+#   }
+
+#   frontend_ip_configuration {
+#     name                 = "appGwPublicFrontendIpIPv4"
+#     public_ip_address_id = azurerm_public_ip.app_gateway.id
+#   }
+
+#   # This is a Key Vault reference, not the PFX content. The versionless URI
+#   # lets Application Gateway detect future certificate versions automatically.
+#   ssl_certificate {
+#     name                = local.gateway_ssl_certificate_name
+#     key_vault_secret_id = "https://${local.key_vault}.vault.azure.net/secrets/${local.tls_certificate_name}"
+#   }
+
+#   # Keep the normal App Service hostname. Private DNS resolves it to the
+#   # private endpoint IP from inside this VNet.
+#   backend_address_pool {
+#     name  = "pool-app-service"
+#     fqdns = [azurerm_linux_web_app.app.default_hostname]
+#   }
+
+#   backend_http_settings {
+#     name                  = "bhs-app-service-https"
+#     cookie_based_affinity = "Disabled"
+#     port                  = 443
+#     protocol              = "Https"
+#     request_timeout       = 30
+#     host_name             = azurerm_linux_web_app.app.default_hostname
+#     probe_name            = "probe-app-service"
+#   }
+
+#   # Azure checks this endpoint before sending users' requests to the backend.
+#   probe {
+#     name                                      = "probe-app-service"
+#     protocol                                  = "Https"
+#     host                                      = azurerm_linux_web_app.app.default_hostname
+#     path                                      = "/"
+#     interval                                  = 30
+#     timeout                                   = 30
+#     unhealthy_threshold                       = 3
+#     minimum_servers                           = 0
+#     pick_host_name_from_backend_http_settings = false
+
+#     match {
+#       status_code = ["200-399"]
+#     }
+#   }
+
+#   http_listener {
+#     name                           = "listener-http"
+#     frontend_ip_configuration_name = "appGwPublicFrontendIpIPv4"
+#     frontend_port_name             = "port_80"
+#     protocol                       = "Http"
+#     host_name                      = local.public_domain_name
+#     require_sni                    = false
+#   }
+
+#   http_listener {
+#     name                           = "listener-https"
+#     frontend_ip_configuration_name = "appGwPublicFrontendIpIPv4"
+#     frontend_port_name             = "port_443"
+#     protocol                       = "Https"
+#     host_name                      = local.public_domain_name
+#     ssl_certificate_name           = local.gateway_ssl_certificate_name
+#     require_sni                    = true
+#   }
+
+#   # Preserve request paths and query strings when redirecting HTTP to HTTPS.
+#   redirect_configuration {
+#     name                 = "redirect-http-to-https"
+#     redirect_type        = "Permanent"
+#     target_listener_name = "listener-https"
+#     include_path         = true
+#     include_query_string = true
+#   }
+
+#   request_routing_rule {
+#     name                        = "rule-http-to-https"
+#     rule_type                   = "Basic"
+#     priority                    = 1
+#     http_listener_name          = "listener-http"
+#     redirect_configuration_name = "redirect-http-to-https"
+#   }
+
+#   request_routing_rule {
+#     name                       = "rule-https-to-app"
+#     rule_type                  = "Basic"
+#     priority                   = 2
+#     http_listener_name         = "listener-https"
+#     backend_address_pool_name  = "pool-app-service"
+#     backend_http_settings_name = "bhs-app-service-https"
+#   }
+
+#   tags = local.tags
+# }
 
 
 ############################################################
