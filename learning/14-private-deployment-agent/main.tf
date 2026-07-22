@@ -1034,9 +1034,41 @@ resource "azurerm_virtual_network" "deployment" {
 
 resource "azurerm_subnet" "deployment_agent" {
   name                 = local.deployment_agent_subnet_name
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name  = azurerm_resource_group.rg.name
   virtual_network_name = azurerm_virtual_network.deployment.name
   address_prefixes     = local.deployment_agent_subnet_prefixes
+}
+
+############################################################
+# VNet Peering
+############################################################
+
+# Allows resources in the deployment VNet to use private routes to the
+# application VNet. A second resource is required for the return direction.
+resource "azurerm_virtual_network_peering" "deployment_to_application" {
+  name                      = "peer-deployment-to-application"
+  resource_group_name       = azurerm_resource_group.rg.name
+  virtual_network_name      = azurerm_virtual_network.deployment.name
+  remote_virtual_network_id = azurerm_virtual_network.vnet.id
+
+  allow_virtual_network_access = true
+  allow_forwarded_traffic      = false
+  allow_gateway_transit        = false
+  use_remote_gateways          = false
+}
+
+# Allows reply traffic and private routes from the application VNet back to
+# the deployment VNet. VNet peering must be configured in both directions.
+resource "azurerm_virtual_network_peering" "application_to_deployment" {
+  name                      = "peer-application-to-deployment"
+  resource_group_name       = azurerm_resource_group.rg.name
+  virtual_network_name      = azurerm_virtual_network.vnet.name
+  remote_virtual_network_id = azurerm_virtual_network.deployment.id
+
+  allow_virtual_network_access = true
+  allow_forwarded_traffic      = false
+  allow_gateway_transit        = false
+  use_remote_gateways          = false
 }
 
 ############################################################
