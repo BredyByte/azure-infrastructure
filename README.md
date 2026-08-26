@@ -114,16 +114,10 @@ The repository contains a safe configuration template:
 terraform.tfvars.example
 ```
 
-Copy it to create the local variables file:
+Copy it to create the local variables file, and complete it:
 
 ```bash
 cp terraform.tfvars.example terraform.tfvars
-```
-
-Complete environment-specific value:
-
-```hcl
-sql_administrator_user_principal_name = "<your-entra-user-principal-name>"
 ```
 
 The real `terraform.tfvars` file is local and is not stored in Git.
