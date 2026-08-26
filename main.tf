@@ -377,3 +377,20 @@ module "monitoring" {
     module.edge_gateway.application_gateway_id
   )
 }
+
+############################################################
+# Alerting
+############################################################
+
+module "alerting" {
+  source = "./modules/alerting"
+
+  resource_group_name = azurerm_resource_group.rg.name
+  web_app_id          = module.app_service.web_app_id
+
+  action_group_name          = "ag-dev-helloworldf800"
+  action_group_email_address = var.action_group_email_address
+  metric_alert_name          = "webapp-http4xx-warning-dev-helloworldf800"
+
+  tags = local.common_tags
+}

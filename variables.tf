@@ -197,3 +197,14 @@ variable "log_analytics_retention_in_days" {
   description = "Number of days that monitoring logs are retained."
   type        = number
 }
+
+############################################################
+# Alerting
+############################################################
+
+variable "action_group_email_address" {
+  description = "Email address that receives Azure Monitor alert notifications."
+  type        = string
+  sensitive   = true
+}
+
