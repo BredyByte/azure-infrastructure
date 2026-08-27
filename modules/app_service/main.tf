@@ -43,6 +43,9 @@ resource "azurerm_linux_web_app" "this" {
     SQL_SERVER                 = var.sql_server_fqdn
     SQL_DATABASE               = var.sql_database_name
 
+    APPLICATIONINSIGHTS_CONNECTION_STRING = var.application_insights_connection_string
+
+
     # Kudu installs requirements.txt during ZIP deployment.
     SCM_DO_BUILD_DURING_DEPLOYMENT = "true"
   }

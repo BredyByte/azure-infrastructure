@@ -171,10 +171,12 @@ module "app_service" {
     module.networking.app_service_integration_subnet_id
   )
 
-  key_vault_uri        = module.data_services.key_vault_uri
-  storage_account_name = module.data_services.storage_account_name
-  sql_server_fqdn      = module.data_services.sql_server_fqdn
-  sql_database_name    = module.data_services.sql_database_name
+  key_vault_uri                          = module.data_services.key_vault_uri
+  storage_account_name                   = module.data_services.storage_account_name
+  sql_server_fqdn                        = module.data_services.sql_server_fqdn
+  sql_database_name                      = module.data_services.sql_database_name
+  application_insights_connection_string = module.monitoring.application_insights_connection_string
+
 }
 
 ############################################################
@@ -303,6 +305,10 @@ module "deployment_platform" {
   deployment_agent_ssh_public_key_path = (
     var.deployment_agent_ssh_public_key_path
   )
+
+  depends_on = [
+    module.networking,
+  ]
 }
 
 ############################################################

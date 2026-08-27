@@ -31,3 +31,18 @@ output "application_gateway_diagnostic_setting_name" {
     azurerm_monitor_diagnostic_setting.application_gateway.name
   )
 }
+
+############################################################
+# Application Insights
+############################################################
+
+output "application_insights_id" {
+  description = "Resource ID of Application Insights."
+  value       = azurerm_application_insights.this.id
+}
+
+output "application_insights_connection_string" {
+  description = "Connection string used by applications to send telemetry to Application Insights."
+  value       = azurerm_application_insights.this.connection_string
+  sensitive   = true
+}

@@ -4,6 +4,7 @@
 
 locals {
   log_analytics_workspace_name        = "law-${var.name_prefix}"
+  application_insights_name           = "app-${var.name_prefix}"
   application_gateway_diagnostic_name = "diag-app-gateway"
 }
 
@@ -53,4 +54,18 @@ resource "azurerm_monitor_diagnostic_setting" "application_gateway" {
   enabled_log {
     category = "ApplicationGatewayFirewallLog"
   }
+}
+
+############################################################
+# Application Insights
+############################################################
+
+resource "azurerm_application_insights" "this" {
+  name                = local.application_insights_name
+  location            = var.location
+  resource_group_name = var.resource_group_name
+  workspace_id        = azurerm_log_analytics_workspace.this.id
+  application_type    = "web"
+
+  tags = var.tags
 }

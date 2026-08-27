@@ -62,3 +62,9 @@ variable "sql_server_fqdn" {
 variable "sql_database_name" {
   type = string
 }
+
+variable "application_insights_connection_string" {
+  description = "Connection string used by the Web App to send telemetry to Application Insights."
+  type        = string
+  sensitive   = true
+}
